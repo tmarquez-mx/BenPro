@@ -20,7 +20,7 @@
 
 ## 🎯 Qué resuelve
 
-Programar los cursos de un posgrado cada semestre es un rompecabezas: hay que respetar las preferencias de horario de cada docente, evitar que un profesor quede en dos aulas a la vez, impedir que dos materias obligatorias de la misma generación se empalmen, y al final entregar reportes limpios a coordinación, a los profesores y al área administrativa.
+Programar los cursos de un posgrado cada semestre es un rompecabezas: hay que respetar las restricciones de los horarios pico, las preferencias de horario de cada docente, impedir que dos materias obligatorias de la misma generación se empalmen, y al final entregar reportes limpios para el ingreso al sistema, la aprobación de la dirección, a los profesores y al personal de apoyo.
 
 BenPro convierte ese rompecabezas en un tablero visual de arrastrar y soltar, y se encarga de vigilar las reglas mientras la persona que coordina decide.
 
