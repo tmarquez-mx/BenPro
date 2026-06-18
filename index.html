@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BenPro · Asistente de programación (demo)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { darkMode: 'class' };
+</script>
+<style>
+  :root { --rojo: #E33439; }
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  .cal-grid { background-image: linear-gradient(to bottom, #e5e7eb 1px, transparent 1px); background-size: 100% 60px; }
+  .dark .cal-grid { background-image: linear-gradient(to bottom, #2a2a2a 1px, transparent 1px); }
+  @keyframes prefPulse { 0%,100%{opacity:.5} 50%{opacity:.85} }
+  .pref-cell { animation: prefPulse 2s ease-in-out infinite; }
+  .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  .dark .scroll-thin::-webkit-scrollbar-thumb { background: #444; }
+  [draggable="true"] { cursor: grab; }
+</style>
+</head>
+<body class="bg-[#F4F4F4] dark:bg-[#0d0d0d] text-gray-800 dark:text-gray-200">
+
+<div id="app" class="h-screen flex flex-col overflow-hidden"></div>
+
+<!-- Contenedor de modales -->
+<div id="modal-root"></div>
+
+<script>
+/* ===========================================================================
+   BenPro · DEMO  (datos ficticios, sin información de personas reales)
+   El motor (choques, preferencias, autoprogramación) es el real de la app.
+   =========================================================================== */
+
+// ---------- DATOS FICTICIOS ----------
+const PROFESORES = {
+  PT1:  { id:'PT1',  nombre:'Laura Mendoza',  preferencia:'Martes (14-17) / Miércoles (14-17)' },
+  PT2:  { id:'PT2',  nombre:'Diego Salas',    preferencia:'Viernes (9-12) / Lunes (14-17)' },
+  PT3:  { id:'PT3',  nombre:'Andrea Ríos',    preferencia:'Martes (15-18) / Jueves (11-14)' },
+  PT4:  { id:'PT4',  nombre:'Pablo Herrera',  preferencia:'Martes (13-16) / Martes (7-10)' },
+  PT5:  { id:'PT5',  nombre:'Carmen Ortiz',   preferencia:'Lunes o miércoles 16-19' },
+  PT6:  { id:'PT6',  nombre:'Hugo Navarro',   preferencia:'Lunes 16-19' },
+  PT7:  { id:'PT7',  nombre:'Sofía Cabrera',  preferencia:'Miércoles' },
+  PT8:  { id:'PT8',  nombre:'Elena Pacheco',  preferencia:'Martes o miércoles por las mañanas' },
+  PT9:  { id:'PT9',  nombre:'Ramón Aguilar',  preferencia:'Martes (11-14) / Miércoles (14-17)' },
+  PT10: { id:'PT10', nombre:'Valentina Cruz', preferencia:'Miércoles (10-13) / Viernes (9-12)' },
+  PT11: { id:'PT11', nombre:'Marcos Téllez',  preferencia:'Jueves (16-19)' },
+  INV:  { id:'INV',  nombre:'Profesor invitado / Por asignar', preferencia:'Flexible' }
+};
+
+const MATERIAS = [
+  { id:'M1', nombre:'Teoría Política Clásica', clave:'11073', grupo:'MS', profId:'PT1', tipo:'obligatoria', horas:3, semestre:1, nivel:'maestria', diaDefecto:'Martes', horaInicioDefecto:14 },
+  { id:'M2', nombre:'Teoría Social Clásica', clave:'11074', grupo:'MS', profId:'PT7', tipo:'obligatoria', horas:3, semestre:1, nivel:'maestria', diaDefecto:'Miércoles', horaInicioDefecto:14 },
+  { id:'AMB1', nombre:'Metodología de la Investigación', clave:'11553', grupo:'MS', profId:'PT3', tipo:'obligatoria', horas:3, semestre:1, nivel:'maestria', diaDefecto:'Jueves', horaInicioDefecto:11 },
+  { id:'M3', nombre:'Teoría Política Contemporánea', clave:'POL-201', grupo:'Por definir', profId:'INV', tipo:'obligatoria', horas:3, semestre:2, nivel:'maestria' },
+  { id:'M4', nombre:'Teoría Social Contemporánea', clave:'SOC-201', grupo:'Por definir', profId:'INV', tipo:'obligatoria', horas:3, semestre:2, nivel:'maestria' },
+  { id:'AMB3', nombre:'Métodos cuantitativos de investigación social', clave:'22009', grupo:'MS', profId:'PT4', tipo:'obligatoria', horas:3, semestres:[2,3], nivel:'maestria', diaDefecto:'Martes', horaInicioDefecto:14 },
+  { id:'AMB4', nombre:'Métodos cualitativos de investigación', clave:'22008', grupo:'MS', profId:'PT5', tipo:'obligatoria', horas:3, semestres:[2,3], nivel:'maestria', diaDefecto:'Lunes', horaInicioDefecto:16 },
+  { id:'M5', nombre:'Seminario de Tesis I', clave:'23487', grupo:'Inic. del director', profId:'INV', tipo:'seminario', horas:3, semestre:3, nivel:'maestria' },
+  { id:'M6', nombre:'Seminario de Análisis', clave:'SEM-401', grupo:'Por definir', profId:'INV', tipo:'obligatoria', horas:3, semestre:4, nivel:'maestria' },
+  { id:'M7', nombre:'Seminario de Tesis II', clave:'SEM-402', grupo:'Inic. del director', profId:'INV', tipo:'seminario', horas:3, semestre:4, nivel:'maestria' },
+  { id:'O1', nombre:'Métodos Mixtos', clave:'Por definir', grupo:'Por definir', profId:'PT9', tipo:'optativa', horas:3, semestres:[1,3], nivel:'ambos', diaDefecto:'Martes', horaInicioDefecto:11 },
+  { id:'O2', nombre:'Artificios e inteligencias', clave:'Por definir', grupo:'Por definir', profId:'PT10', tipo:'optativa', horas:3, semestres:[1,3], nivel:'ambos', diaDefecto:'Miércoles', horaInicioDefecto:10 },
+  { id:'O3', nombre:'Teoría de sistemas sociales', clave:'Por definir', grupo:'Por definir', profId:'PT11', tipo:'optativa', horas:3, semestres:[1,3], nivel:'ambos', diaDefecto:'Jueves', horaInicioDefecto:16 },
+  { id:'D1', nombre:'Teoría Social: Debates contemporáneos', clave:'23495', grupo:'DR', profId:'PT2', tipo:'obligatoria', horas:3, semestre:1, nivel:'doctorado', diaDefecto:'Viernes', horaInicioDefecto:9 },
+  { id:'AMB2', nombre:'Metodología de la investigación Social', clave:'23494', grupo:'DR', profId:'PT6', tipo:'obligatoria', horas:3, semestre:1, nivel:'doctorado', diaDefecto:'Lunes', horaInicioDefecto:16 },
+  { id:'D2', nombre:'Teoría Política: Debates Contemporáneos', clave:'DPOL-201', grupo:'Por definir', profId:'INV', tipo:'obligatoria', horas:3, semestre:2, nivel:'doctorado' },
+  { id:'D3', nombre:'Seminario de Investigación Doctoral I', clave:'23500', grupo:'Inic. del director', profId:'INV', tipo:'seminario', horas:3, semestre:3, nivel:'doctorado' },
+  { id:'D8', nombre:'Métodos Cuantitativos de la Investigación', clave:'11542', grupo:'DR', profId:'PT4', tipo:'obligatoria', horas:3, semestres:[2,3], nivel:'ambos' },
+  { id:'D9', nombre:'Métodos cualitativos de investigación', clave:'11532', grupo:'DR', profId:'PT5', tipo:'obligatoria', horas:3, semestre:3, nivel:'doctorado', diaDefecto:'Lunes', horaInicioDefecto:16 },
+  { id:'D7', nombre:'Seminario de Análisis (Doc)', clave:'23503', grupo:'DR', profId:'PT8', tipo:'obligatoria', horas:3, semestre:7, nivel:'doctorado', diaDefecto:'Martes', horaInicioDefecto:9 },
+  { id:'D10', nombre:'Seminario de titulación I', clave:'23502', grupo:'Inic. del director', profId:'INV', tipo:'seminario', horas:3, semestre:7, nivel:'doctorado' },
+];
+
+const DIAS = ['Lunes','Martes','Miércoles','Jueves','Viernes'];
+const HORAS = [8,9,10,11,12,13,14,15,16,17,18,19,20];
+
+// ---------- MOTOR (portado del código real) ----------
+function getGeneracion(semestre, anio, periodo){
+  const sem = parseInt(semestre)||1;
+  const ajuste = periodo==='primavera' ? 1 : 0;
+  return anio - Math.floor((sem-1)/2) - ajuste;
+}
+
+function getColor(materia){
+  if(!materia) return 'border-gray-400';
+  if(materia.tipo==='optativa') return 'border-emerald-500';
+  if(materia.tipo==='seminario') return 'border-purple-500';
+  const sem = Array.isArray(materia.semestres)? materia.semestres[0] : (parseInt(materia.semestre)||1);
+  const map = {1:'border-blue-500',2:'border-indigo-500',3:'border-violet-500',4:'border-fuchsia-500',5:'border-rose-500',6:'border-cyan-500',7:'border-sky-500'};
+  return map[sem] || 'border-blue-500';
+}
+
+function parsePreferencias(prefText){
+  if(!prefText || prefText==='Flexible' || prefText==='Sin preferencia') return null;
+  const diasMap = {'lunes':'Lunes','martes':'Martes','miércoles':'Miércoles','miercoles':'Miércoles','jueves':'Jueves','viernes':'Viernes'};
+  const slots = [];
+  const text = prefText.toLowerCase();
+  const rangePattern = /\(?\s*(\d{1,2})\s*[-–]\s*(\d{1,2})\s*\)?/g;
+  const ranges = []; let rm;
+  while((rm=rangePattern.exec(text))!==null){ ranges.push({inicio:parseInt(rm[1]),fin:parseInt(rm[2]),index:rm.index}); }
+  const dayPattern = /(lunes|martes|mi[eé]rcoles|jueves|viernes)/gi;
+  const foundDays = []; let dm;
+  while((dm=dayPattern.exec(text))!==null){ foundDays.push({dia:diasMap[dm[1].toLowerCase().replace('é','e')]||dm[1],index:dm.index}); }
+  if(foundDays.length===0 && ranges.length>0){
+    ranges.forEach(r=>{ for(let h=r.inicio;h<r.fin;h++) DIAS.forEach(d=>slots.push({dia:d,hora:h})); });
+  } else if(foundDays.length>0 && ranges.length===0){
+    const manana = text.includes('mañana');
+    foundDays.forEach(fd=>{ if(manana){for(let h=8;h<14;h++)slots.push({dia:fd.dia,hora:h});} else {for(let h=8;h<21;h++)slots.push({dia:fd.dia,hora:h});} });
+  } else {
+    foundDays.forEach(fd=>{
+      let best = ranges.reduce((b,r)=>{ const dist=Math.abs(r.index-fd.index); return (!b||dist<b.dist)?{...r,dist}:b; }, null);
+      if(best){ for(let h=best.inicio;h<best.fin;h++) slots.push({dia:fd.dia,hora:h}); }
+    });
+  }
+  return slots.length>0 ? slots : null;
+}
+
+function verificarColisiones(materia, dia, hora, prog, catalogo, periodo){
+  if(!dia || dia==='Sin horario') return false;
+  const getActiveSems = (m)=>{ const s = Array.isArray(m.semestres)?m.semestres:[m.semestre||1]; return s.filter(x=> periodo==='otoño'? x%2!==0 : x%2===0); };
+  return prog.some(p=>{
+    if(p.dia!==dia || p.dia==='Sin horario') return false;
+    if(p.materiaId===materia.id) return false;
+    const iN=hora, fN=hora+materia.horas, iE=p.horaInicio, fE=p.horaInicio+p.horas;
+    if(iN<fE && fN>iE){
+      const me = catalogo.find(x=>x.id===p.materiaId);
+      if(me){
+        const equiv = (me.clave==='11542'&&materia.clave==='22009')||(me.clave==='22009'&&materia.clave==='11542')||(me.clave==='11532'&&materia.clave==='22008')||(me.clave==='22008'&&materia.clave==='11532');
+        if(equiv) return false;
+        const mismoProf = me.profId===materia.profId && materia.profId!=='INV';
+        const compart = getActiveSems(me).some(s=>getActiveSems(materia).includes(s));
+        const mismaCohorte = (me.nivel===materia.nivel||me.nivel==='ambos'||materia.nivel==='ambos') && compart;
+        if(mismoProf) return true;
+        if(mismaCohorte && me.tipo==='obligatoria' && materia.tipo==='obligatoria') return true;
+      }
+    }
+    return false;
+  });
+}
+
+function autoScheduleAll(pendientes, prog, catalogo, profs, periodo){
+  let newProg = [...prog]; const placed=[], skipped=[];
+  const seminarios = pendientes.filter(m=>m.tipo==='seminario');
+  const regulares = pendientes.filter(m=>m.tipo!=='seminario');
+  seminarios.forEach(m=>{ newProg.push({materiaId:m.id,dia:'Sin horario',horaInicio:0,horas:m.horas}); placed.push({materia:m,dia:'Sin horario',horaInicio:0,reason:'Seminario (sin horario)'}); });
+  const getActiveSems = (m)=>{ const s=Array.isArray(m.semestres)?m.semestres:[m.semestre||1]; return s.filter(x=>periodo==='otoño'?x%2!==0:x%2===0); };
+  const cohortKey = (m)=> `${m.nivel}_${getActiveSems(m).sort().join('-')}`;
+  const groups = {};
+  regulares.forEach(m=>{ const k=cohortKey(m); (groups[k]=groups[k]||[]).push(m); });
+  const daysUsed = {};
+  newProg.forEach(p=>{ if(p.dia==='Sin horario')return; const m=catalogo.find(x=>x.id===p.materiaId); if(!m)return; const k=cohortKey(m); (daysUsed[k]=daysUsed[k]||new Set()).add(p.dia); });
+  const PREF_HOURS = [9,10,11,14,15,16,8,13,17,18,19];
+  Object.keys(groups).sort((a,b)=> groups[b].filter(m=>m.tipo==='obligatoria').length - groups[a].filter(m=>m.tipo==='obligatoria').length).forEach(k=>{
+    const subjects = groups[k]; if(!daysUsed[k]) daysUsed[k]=new Set();
+    subjects.sort((a,b)=>{ const t={obligatoria:0,optativa:1}; return (t[a.tipo]??2)-(t[b.tipo]??2); });
+    subjects.forEach(materia=>{
+      const prof = profs[materia.profId]; const pref = prof? parsePreferencias(prof.preferencia):null;
+      // 1) default
+      if(materia.diaDefecto && materia.horaInicioDefecto!=null && materia.horaInicioDefecto+materia.horas<=21){
+        if(!verificarColisiones(materia,materia.diaDefecto,materia.horaInicioDefecto,newProg,catalogo,periodo)){
+          newProg.push({materiaId:materia.id,dia:materia.diaDefecto,horaInicio:materia.horaInicioDefecto,horas:materia.horas});
+          daysUsed[k].add(materia.diaDefecto); placed.push({materia,dia:materia.diaDefecto,horaInicio:materia.horaInicioDefecto,reason:'Horario predeterminado'}); return;
+        }
+      }
+      const usados = Array.from(daysUsed[k]);
+      const prioridad = [...usados, ...DIAS.filter(d=>!usados.includes(d))];
+      // 2) preferencias
+      if(pref && pref.length>0){
+        for(const dia of prioridad){
+          const horasDia = [...new Set(pref.filter(s=>s.dia===dia).map(s=>s.hora))].sort((a,b)=>a-b);
+          for(const h of horasDia){
+            if(h+materia.horas>21) continue;
+            let ok=true; for(let x=h;x<h+materia.horas;x++){ if(!pref.some(s=>s.dia===dia&&s.hora===x)){ok=false;break;} }
+            if(!ok) continue;
+            if(!verificarColisiones(materia,dia,h,newProg,catalogo,periodo)){ newProg.push({materiaId:materia.id,dia,horaInicio:h,horas:materia.horas}); daysUsed[k].add(dia); placed.push({materia,dia,horaInicio:h,reason:'Preferencia del profesor'}); return; }
+          }
+        }
+      }
+      // 3) cualquier hueco
+      for(const dia of prioridad){
+        for(const h of PREF_HOURS){
+          if(h+materia.horas>21) continue;
+          if(!verificarColisiones(materia,dia,h,newProg,catalogo,periodo)){ newProg.push({materiaId:materia.id,dia,horaInicio:h,horas:materia.horas}); daysUsed[k].add(dia); placed.push({materia,dia,horaInicio:h,reason: pref?'Fuera de preferencia (slot libre)':'Profesor flexible'}); return; }
+        }
+      }
+      skipped.push({materia,reason:'Sin slot disponible sin colisiones'});
+    });
+  });
+  return { newProg, placed, skipped };
+}
+
+// ---------- ESTADO ----------
+const initialProg = [
+  {materiaId:'M1',dia:'Martes',horaInicio:14,horas:3},
+  {materiaId:'M2',dia:'Miércoles',horaInicio:14,horas:3},
+  {materiaId:'AMB1',dia:'Jueves',horaInicio:11,horas:3},
+  {materiaId:'AMB4',dia:'Lunes',horaInicio:16,horas:3},
+  {materiaId:'O1',dia:'Martes',horaInicio:11,horas:3},
+  {materiaId:'O2',dia:'Miércoles',horaInicio:10,horas:3},
+  {materiaId:'M5',dia:'Sin horario',horaInicio:0,horas:3},
+];
+
+const state = {
+  nivel:'maestria', periodo:'otoño', anio:2026,
+  programacion: JSON.parse(JSON.stringify(initialProg)),
+  seleccion:null, mensaje:'', dark:false,
+  undo:[], redo:[],
+};
+
+function pushUndo(){ state.undo.push(JSON.parse(JSON.stringify(state.programacion))); if(state.undo.length>30) state.undo.shift(); state.redo=[]; }
+function doUndo(){ if(!state.undo.length)return; state.redo.push(JSON.parse(JSON.stringify(state.programacion))); state.programacion=state.undo.pop(); flash('↩ Acción deshecha'); render(); }
+function doRedo(){ if(!state.redo.length)return; state.undo.push(JSON.parse(JSON.stringify(state.programacion))); state.programacion=state.redo.pop(); flash('↪ Acción rehecha'); render(); }
+function flash(msg){ state.mensaje=msg; render(); clearTimeout(window._t); window._t=setTimeout(()=>{state.mensaje='';render();},2600); }
+
+// ---------- SELECTORES ----------
+const matsDelNivel = ()=> MATERIAS.filter(m=> m.nivel===state.nivel || m.nivel==='ambos');
+const matsActuales = ()=> matsDelNivel().filter(m=>{
+  if(m.tipo==='optativa') return state.periodo==='otoño';
+  const sems = Array.isArray(m.semestres)?m.semestres:[m.semestre||1];
+  return sems.some(s=> state.periodo==='otoño'? s%2!==0 : s%2===0);
+});
+const noProgramadas = ()=> matsActuales().filter(m=> !state.programacion.find(p=>p.materiaId===m.id));
+const semestresActuales = ()=>{
+  const set = new Set();
+  matsActuales().forEach(m=>{ const a=Array.isArray(m.semestres)?m.semestres:[m.semestre||1]; a.forEach(s=>{ if(state.periodo==='otoño'? s%2!==0 : s%2===0) set.add(s); }); });
+  return Array.from(set).sort((a,b)=>a-b);
+};
+
+// ---------- ACCIONES ----------
+function seleccionar(id){
+  const m = MATERIAS.find(x=>x.id===id);
+  if(!m) return;
+  if(m.tipo==='seminario'){ programarSeminario(m); return; }
+  state.seleccion = state.seleccion===id? null : id;
+  state.mensaje=''; render();
+}
+function programarSeminario(m){
+  pushUndo();
+  state.programacion = state.programacion.filter(p=>p.materiaId!==m.id);
+  state.programacion.push({materiaId:m.id,dia:'Sin horario',horaInicio:0,horas:m.horas});
+  state.seleccion=null; render();
+}
+function colocar(dia,hora){
+  if(!state.seleccion) return;
+  const m = MATERIAS.find(x=>x.id===state.seleccion);
+  if(!m || m.tipo==='seminario') return;
+  if(hora+m.horas>21){ flash('La materia excede el horario límite (21:00).'); return; }
+  if(verificarColisiones(m,dia,hora,state.programacion,MATERIAS,state.periodo)){ flash('Choque detectado: docente ocupado o empalme de obligatorias.'); return; }
+  pushUndo();
+  state.programacion = state.programacion.filter(p=>p.materiaId!==m.id);
+  state.programacion.push({materiaId:m.id,dia,horaInicio:hora,horas:m.horas});
+  state.seleccion=null; state.mensaje=''; render();
+}
+function soltar(dia,hora,id){
+  const m = MATERIAS.find(x=>x.id===id);
+  if(!m || m.tipo==='seminario') return;
+  if(hora+m.horas>21){ flash('La materia excede el horario límite (21:00).'); return; }
+  if(verificarColisiones(m,dia,hora,state.programacion,MATERIAS,state.periodo)){ flash('Choque detectado al mover '+m.nombre+'.'); return; }
+  pushUndo();
+  state.programacion = state.programacion.filter(p=>p.materiaId!==m.id);
+  state.programacion.push({materiaId:m.id,dia,horaInicio:hora,horas:m.horas});
+  state.seleccion=null; state.mensaje=''; render();
+}
+function quitar(id){ pushUndo(); state.programacion = state.programacion.filter(p=>p.materiaId!==id); if(state.seleccion===id) state.seleccion=null; render(); }
+function limpiar(){ pushUndo(); state.programacion=[]; flash('Calendario limpio.'); }
+function autoTodo(){
+  const pend = noProgramadas();
+  if(!pend.length){ flash('Todas las asignaturas ya están programadas.'); return; }
+  pushUndo();
+  const r = autoScheduleAll(pend, state.programacion, MATERIAS, PROFESORES, state.periodo);
+  state.programacion = r.newProg; state.seleccion=null;
+  render(); openAutoModal(r);
+}
+
+// ---------- RENDER ----------
+function tarjeta(m){
+  const prof = PROFESORES[m.profId]||{nombre:'Sin asignar'};
+  const sel = state.seleccion===m.id;
+  const sem = m.tipo==='seminario';
+  return `<div ${sem?'':'draggable="true" ondragstart="dragStart(event,\''+m.id+'\')"'}
+      onclick="seleccionar('${m.id}')"
+      class="p-3 rounded-xl border-y border-r border-l-4 ${getColor(m)} bg-white dark:bg-[#222] dark:border-y-[#333] dark:border-r-[#333] shadow-sm cursor-pointer ${sel?'ring-2 ring-[#E33439] ring-offset-1':''} hover:shadow-md transition">
+      <div class="flex justify-between items-start gap-2">
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="text-[10px] font-mono font-bold bg-[#E33439]/10 text-[#E33439] border border-[#E33439]/20 px-1 py-0.5 rounded">${m.clave||'S/C'}${m.grupo?' | '+m.grupo:''}</span>
+          <span class="font-bold text-sm leading-tight">${m.nombre}</span>
+        </div>
+        ${state.programacion.find(p=>p.materiaId===m.id)?`<button onclick="event.stopPropagation();quitar('${m.id}')" class="text-gray-300 hover:text-[#E33439] text-xs">✕</button>`:''}
+      </div>
+      <div class="flex justify-between items-center mt-2">
+        <span class="text-[11px] text-gray-500 dark:text-gray-400">👤 ${prof.nombre}</span>
+        ${sem?`<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300">SEMINARIO</span>`
+            : `<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-500 dark:bg-[#333] dark:text-gray-300">${m.horas}h</span>`}
+      </div>
+    </div>`;
+}
+
+function bloque(p,m){
+  const prof = PROFESORES[m.profId]||{nombre:'Sin asignar'};
+  const sel = state.seleccion===m.id;
+  const opt = m.tipo==='optativa';
+  return `<div draggable="true" ondragstart="dragStart(event,'${m.id}')"
+      onclick="event.stopPropagation();seleccionar('${m.id}')"
+      class="absolute p-2.5 border-y border-r border-l-4 ${getColor(m)} rounded-r-lg shadow-sm bg-white dark:bg-[#222] dark:border-y-[#333] dark:border-r-[#333] ${sel?'ring-2 ring-[#E33439] z-30':'z-10'} group transition"
+      style="top:${(p.horaInicio-8)*60+2}px;height:${m.horas*60-4}px;left:${opt?'22px':'4px'};width:${opt?'calc(100% - 26px)':'calc(100% - 8px)'}">
+      <div class="flex flex-wrap items-center gap-1">
+        <span class="text-[9px] font-mono font-bold bg-[#E33439]/10 text-[#E33439] border border-[#E33439]/20 px-1 rounded">${m.clave||'S/C'}</span>
+        <span class="font-bold text-[12px] leading-tight">${m.nombre}</span>
+      </div>
+      <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">👤 ${prof.nombre}</p>
+      <div class="flex justify-between items-center mt-1">
+        <span class="text-[10px] font-semibold text-gray-400">${p.horaInicio}:00–${p.horaInicio+m.horas}:00</span>
+        <button onclick="event.stopPropagation();quitar('${m.id}')" class="opacity-0 group-hover:opacity-100 text-[10px] px-1.5 rounded bg-gray-100 dark:bg-[#333] text-gray-500 hover:bg-[#E33439] hover:text-white">Quitar</button>
+      </div>
+    </div>`;
+}
+
+function prefSlots(){
+  if(!state.seleccion) return null;
+  const m = MATERIAS.find(x=>x.id===state.seleccion); if(!m) return null;
+  const prof = PROFESORES[m.profId]; if(!prof) return null;
+  return parsePreferencias(prof.preferencia);
+}
+
+function render(){
+  const seminariosProg = state.programacion.filter(p=>p.dia==='Sin horario' && matsDelNivel().find(m=>m.id===p.materiaId));
+  const pSlots = prefSlots();
+  const sems = semestresActuales();
+  const app = document.getElementById('app');
+
+  app.innerHTML = `
+  <!-- HEADER -->
+  <header class="px-6 py-4 flex items-center justify-between border-b shadow-sm bg-white dark:bg-[#141414] dark:border-[#252525] shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-[#E33439] text-white flex items-center justify-center font-extrabold">B</div>
+      <div>
+        <h1 class="text-lg font-bold leading-none">BenPro</h1>
+        <p class="text-[9px] text-[#E33439] font-bold uppercase tracking-widest mt-0.5">Asistente de programación · demo</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="p-1 rounded-full flex border shadow-inner bg-gray-100 dark:bg-[#121212] dark:border-[#333]">
+        <span class="px-3 text-xs font-bold text-gray-500 self-center">${state.anio}</span>
+        ${botonCiclo('otoño','Otoño', state.periodo==='otoño')}
+        ${botonCiclo('primavera','Primavera', state.periodo==='primavera')}
+      </div>
+      <div class="p-1 rounded-full flex border shadow-inner bg-gray-100 dark:bg-[#121212] dark:border-[#333]">
+        ${botonNivel('maestria','📘 Maestría', state.nivel==='maestria')}
+        ${botonNivel('doctorado','🎓 Doctorado', state.nivel==='doctorado')}
+      </div>
+      <button onclick="toggleDark()" class="w-9 h-9 rounded-full border bg-gray-100 dark:bg-[#252525] dark:border-[#444] text-gray-500 dark:text-yellow-400">${state.dark?'☀️':'🌙'}</button>
+    </div>
+  </header>
+
+  <!-- TOOLBAR -->
+  <div class="flex items-center justify-between px-6 py-2 border-b bg-white dark:bg-[#141414] dark:border-[#252525] shrink-0 gap-3 flex-wrap">
+    <div class="flex items-center gap-2">
+      <button onclick="autoTodo()" class="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-md text-xs font-bold shadow-sm hover:scale-105 transition">⚡ Autoprogramar</button>
+      <button onclick="limpiar()" class="px-3 py-1 bg-blue-50 text-blue-700 dark:bg-[#252525] dark:text-blue-400 border dark:border-[#444] rounded-md text-xs font-bold">🗓️ Limpiar</button>
+      <div class="h-4 w-px bg-gray-300 dark:bg-[#444]"></div>
+      <button onclick="doUndo()" class="px-2.5 py-1 rounded-md text-xs font-bold ${state.undo.length?'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#252525]':'text-gray-300 dark:text-gray-600 cursor-not-allowed'}">↩ Deshacer</button>
+      <button onclick="doRedo()" class="px-2.5 py-1 rounded-md text-xs font-bold ${state.redo.length?'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#252525]':'text-gray-300 dark:text-gray-600 cursor-not-allowed'}">↪ Rehacer</button>
+    </div>
+    <div class="flex-1 flex justify-center min-w-[200px]">
+      ${state.mensaje?`<div class="px-4 py-1 rounded-full bg-red-50 text-red-700 dark:bg-[#2a1111] dark:text-red-400 border dark:border-red-900/50 text-[11px] font-bold">${state.mensaje}</div>`
+        : state.seleccion?`<div class="px-4 py-1 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border text-[11px]">➡ Ubicando: <b>${MATERIAS.find(m=>m.id===state.seleccion).nombre}</b> · haz clic en una celda <button onclick="state.seleccion=null;render()" class="ml-1 underline font-bold">cancelar</button></div>`:''}
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="openReporte()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-bold shadow-sm">👤 Reporte docentes</button>
+      <button onclick="openStats()" class="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-xs font-bold shadow-sm">📊 Estadísticas</button>
+      <button onclick="exportCSV()" class="px-3 py-1 text-[#E33439] hover:bg-red-50 dark:hover:bg-[#2a1111] rounded-md text-xs font-bold">⬇ CSV</button>
+    </div>
+  </div>
+
+  <!-- WORKSPACE -->
+  <div class="flex-1 flex overflow-hidden">
+    <!-- SIDEBAR -->
+    <aside class="w-[360px] shrink-0 flex flex-col border-r bg-white dark:bg-[#141414] dark:border-[#252525]">
+      <div class="px-5 py-3 border-b dark:border-[#2d2d2d] flex justify-between items-center">
+        <h2 class="font-bold text-sm uppercase tracking-wider">Asignaturas por programar</h2>
+        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 dark:bg-[#252525] text-gray-500">${noProgramadas().length}</span>
+      </div>
+      <div class="flex-1 overflow-y-auto scroll-thin p-4 bg-gray-50/50 dark:bg-[#121212]">
+        ${sems.length===0?`<p class="text-center text-sm text-gray-400 mt-8">No hay asignaturas activas en este periodo.</p>`:
+          sems.map(s=>{
+            const mats = noProgramadas().filter(m=>{ const a=Array.isArray(m.semestres)?m.semestres:[m.semestre||1]; return a.includes(s); });
+            return `<div class="mb-5">
+              <div class="flex justify-between text-[11px] font-bold uppercase tracking-wider mb-2 pb-1 border-b dark:border-[#333]">
+                <span>Gen. ${getGeneracion(s,state.anio,state.periodo)}</span><span class="text-[#E33439]">Semestre ${s}</span>
+              </div>
+              ${mats.length? mats.map(tarjeta).join('') : `<div class="text-center text-[11px] text-emerald-600 dark:text-emerald-400 font-bold py-3 border border-dashed border-emerald-300 dark:border-emerald-500/30 rounded-xl">✓ Generación programada</div>`}
+            </div>`;
+          }).join('')}
+      </div>
+      <!-- DOCENTES -->
+      <div class="h-[34%] border-t dark:border-[#2d2d2d] flex flex-col">
+        <div class="px-5 py-2.5 border-b dark:border-[#2d2d2d]"><h3 class="text-xs font-bold uppercase tracking-wider">👤 Docentes y sus preferencias</h3></div>
+        <div class="flex-1 overflow-y-auto scroll-thin p-4 space-y-2">
+          ${Object.values(PROFESORES).filter(p=>p.id!=='INV').map(p=>`
+            <div class="p-2.5 rounded-lg border bg-gray-50 dark:bg-[#222] dark:border-[#333]">
+              <p class="font-bold text-[13px]">${p.nombre}</p>
+              <p class="text-[10px] text-gray-500 mt-0.5">${p.preferencia}</p>
+            </div>`).join('')}
+        </div>
+      </div>
+    </aside>
+
+    <!-- CALENDARIO -->
+    <section class="flex-1 flex flex-col overflow-hidden p-4">
+      <div class="flex-1 rounded-xl border flex flex-col overflow-hidden bg-white dark:bg-[#1a1a1a] dark:border-[#2d2d2d]">
+        <div class="grid grid-cols-[60px_repeat(5,1fr)] border-b text-center text-[11px] font-bold uppercase tracking-wider bg-gray-50 dark:bg-[#1e1e1e] dark:border-[#2d2d2d] text-gray-500 py-2">
+          <div>⏱</div>${DIAS.map(d=>`<div class="border-r last:border-0 dark:border-[#2d2d2d]">${d}</div>`).join('')}
+        </div>
+        ${state.seleccion && pSlots ? `<div class="px-4 py-1 bg-emerald-50 dark:bg-emerald-900/15 border-b dark:border-emerald-800/30 text-center text-[10px] text-emerald-700 dark:text-emerald-300 font-bold">Celdas en verde = horario preferido por ${PROFESORES[MATERIAS.find(m=>m.id===state.seleccion).profId].nombre}</div>`:''}
+        <div class="flex-1 overflow-y-auto scroll-thin relative cal-grid">
+          <div class="grid grid-cols-[60px_repeat(5,1fr)] absolute inset-0" style="height:${HORAS.length*60}px">
+            <div class="border-r dark:border-[#2d2d2d]">
+              ${HORAS.map(h=>`<div class="h-[60px] text-[10px] font-bold text-right pr-2 pt-1 text-gray-400"><span class="relative -top-2 bg-white dark:bg-[#1a1a1a] px-1">${h}:00</span></div>`).join('')}
+            </div>
+            ${DIAS.map(d=>`
+              <div class="relative border-r last:border-0 border-gray-100 dark:border-[#2d2d2d]">
+                ${HORAS.map(h=>{
+                  let cls='';
+                  if(state.seleccion && pSlots){ const pref=pSlots.some(s=>s.dia===d&&s.hora===h); cls = pref?'bg-emerald-100/60 dark:bg-emerald-900/25 pref-cell':'bg-amber-50/30 dark:bg-amber-900/10'; }
+                  return `<div onclick="colocar('${d}',${h})" ondragover="event.preventDefault()" ondrop="dropCell(event,'${d}',${h})" class="h-[60px] ${cls} ${state.seleccion?'cursor-crosshair':''}"></div>`;
+                }).join('')}
+                ${state.programacion.filter(p=>p.dia===d).map(p=>{ const m=matsDelNivel().find(x=>x.id===p.materiaId); return m?bloque(p,m):''; }).join('')}
+              </div>`).join('')}
+          </div>
+        </div>
+        ${seminariosProg.length?`
+        <div class="p-3 border-t bg-gray-50 dark:bg-[#1e1e1e] dark:border-[#2d2d2d]">
+          <h4 class="text-[10px] font-bold uppercase tracking-wider mb-2 text-gray-500">📚 Seminarios (sin horario)</h4>
+          <div class="flex flex-wrap gap-2">
+            ${seminariosProg.map(p=>{ const m=matsDelNivel().find(x=>x.id===p.materiaId); const prof=PROFESORES[m.profId]||{nombre:''}; return `<div class="flex items-center gap-2 p-2 rounded-lg border bg-white dark:bg-[#222] dark:border-[#333] border-l-4 ${getColor(m)}"><div><p class="text-xs font-bold">${m.nombre}</p><p class="text-[9px] text-gray-500">👤 ${prof.nombre}</p></div><button onclick="quitar('${m.id}')" class="text-gray-400 hover:text-red-500 text-xs">✕</button></div>`; }).join('')}
+          </div>
+        </div>`:''}
+      </div>
+    </section>
+  </div>`;
+}
+
+// helpers de UI
+function botonCiclo(val,label,active){ return `<button onclick="cambiar('periodo','${val}')" class="px-4 py-1.5 rounded-full text-xs font-bold transition ${active?'bg-[#E33439] text-white shadow':'text-gray-500 hover:text-gray-800 dark:text-gray-400'}">${label}</button>`; }
+function botonNivel(val,label,active){ return `<button onclick="cambiar('nivel','${val}')" class="px-4 py-1.5 rounded-full text-xs font-bold transition ${active?'bg-[#E33439] text-white shadow':'text-gray-500 hover:text-gray-800 dark:text-gray-400'}">${label}</button>`; }
+function cambiar(campo,val){ state[campo]=val; state.seleccion=null; state.mensaje=''; render(); }
+function toggleDark(){ state.dark=!state.dark; document.documentElement.classList.toggle('dark',state.dark); document.body.classList.toggle('bg-[#0d0d0d]',state.dark); render(); }
+function dragStart(e,id){ e.dataTransfer.setData('text/plain',id); state.seleccion=null; }
+function dropCell(e,d,h){ e.preventDefault(); const id=e.dataTransfer.getData('text/plain'); if(id) soltar(d,h,id); }
+
+document.addEventListener('keydown',e=>{ if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.shiftKey){e.preventDefault();doUndo();} if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.key==='z'&&e.shiftKey))){e.preventDefault();doRedo();} });
+
+// ---------- MODALES ----------
+function closeModal(){ document.getElementById('modal-root').innerHTML=''; }
+function shell(inner,max='max-w-3xl'){ return `<div class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" onclick="if(event.target===this)closeModal()"><div class="rounded-2xl shadow-2xl w-full ${max} max-h-[85vh] flex flex-col overflow-hidden bg-white dark:bg-[#1c1c1c] dark:border dark:border-[#333]">${inner}</div></div>`; }
+
+function clasesPorProfesor(){
+  const map={}; Object.keys(PROFESORES).forEach(id=>map[id]=[]);
+  // ambos niveles, usando programación actual del nivel visible + inicial del otro (demo: solo el visible)
+  state.programacion.forEach(p=>{ const m=MATERIAS.find(x=>x.id===p.materiaId); if(m && (m.nivel===state.nivel||m.nivel==='ambos')){ (map[m.profId]=map[m.profId]||[]).push({...p,materia:m}); } });
+  return map;
+}
+function fueraDePref(profId,dia,hora,horas){ const prof=PROFESORES[profId]; if(!prof)return false; const slots=parsePreferencias(prof.preferencia); if(!slots)return false; for(let h=hora;h<hora+horas;h++){ if(!slots.some(s=>s.dia===dia&&s.hora===h))return true; } return false; }
+
+function openReporte(){
+  const cls = clasesPorProfesor();
+  const profs = Object.values(PROFESORES).filter(p=>p.id!=='INV').sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  const cuerpo = profs.map(prof=>{
+    const lista=[...(cls[prof.id]||[])].sort((a,b)=>{ const o={'Lunes':1,'Martes':2,'Miércoles':3,'Jueves':4,'Viernes':5,'Sin horario':6}; return (o[a.dia]||9)-(o[b.dia]||9)||a.horaInicio-b.horaInicio; });
+    return `<div class="p-4 border rounded-xl bg-white dark:bg-[#1e1e1e] dark:border-[#2d2d2d] mb-3">
+      <div class="flex justify-between items-center border-b dark:border-[#2d2d2d] pb-2 mb-2">
+        <div><h4 class="font-bold flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-[#E33439]"></span>${prof.nombre}</h4>
+        <p class="text-[10px] text-gray-500 italic mt-0.5">Preferencia: ${prof.preferencia}</p></div>
+        <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-gray-100 dark:bg-[#2d2d2d] text-gray-600 dark:text-gray-300">${lista.length} ${lista.length===1?'grupo':'grupos'}</span>
+      </div>
+      ${lista.length? `<table class="w-full text-xs text-left"><thead><tr class="text-gray-400 uppercase text-[10px] border-b dark:border-[#2d2d2d]"><th class="py-1.5">Materia</th><th>Horario</th><th class="text-right">Preferencia</th></tr></thead><tbody>
+        ${lista.map(c=>{ const sem=c.dia==='Sin horario'||c.materia.tipo==='seminario'; const fuera=!sem&&fueraDePref(prof.id,c.dia,c.horaInicio,c.horas);
+          return `<tr class="border-b last:border-0 dark:border-[#252525]"><td class="py-2"><b>${c.materia.nombre}</b><br><span class="text-[10px] font-mono text-gray-400">${c.materia.clave||'S/C'}</span></td><td>${sem?'<span class="text-gray-400 italic">Seminario</span>':`<b>${c.dia}</b> ${c.horaInicio}:00–${c.horaInicio+c.horas}:00`}</td><td class="text-right">${sem?'—':fuera?'<span class="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">⚠ Fuera</span>':'<span class="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">✓ Preferido</span>'}</td></tr>`; }).join('')}
+      </tbody></table>` : `<p class="text-xs text-gray-400 italic py-2">Sin asignaturas programadas en este periodo.</p>`}
+    </div>`;
+  }).join('');
+  document.getElementById('modal-root').innerHTML = shell(`
+    <div class="px-5 py-4 border-b dark:border-[#2d2d2d] flex justify-between items-center bg-gray-50 dark:bg-[#1e1e1e]">
+      <h3 class="font-bold text-lg">📄 Reporte de asignación por docente</h3>
+      <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+    </div>
+    <div class="flex-1 overflow-y-auto scroll-thin p-5 bg-gray-50/30 dark:bg-[#121212]">${cuerpo}</div>
+    <div class="px-5 py-3 border-t dark:border-[#2d2d2d] bg-gray-50 dark:bg-[#1e1e1e] flex justify-end gap-2">
+      <button onclick="exportReporteWord()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold">⬇ Descargar Word</button>
+      <button onclick="closeModal()" class="px-4 py-2 border rounded-lg text-sm font-bold dark:border-[#333]">Cerrar</button>
+    </div>`,'max-w-3xl');
+}
+
+function openStats(){
+  const acts = matsActuales();
+  const horasSemana = state.programacion.reduce((t,p)=>{ const m=acts.find(x=>x.id===p.materiaId); return t+(m?m.horas:0); },0);
+  const programadas = acts.length - noProgramadas().length;
+  const pctProg = acts.length? Math.round(programadas/acts.length*100):0;
+  // pico (otoño 2026+ => 7-15)
+  const nuevoPico = (state.anio>2026)||(state.anio===2026&&state.periodo==='otoño');
+  let dentro=0,total=0;
+  state.programacion.forEach(p=>{ if(p.dia!=='Sin horario'){ const m=acts.find(x=>x.id===p.materiaId); if(m){ total++; const en = nuevoPico?(p.horaInicio>=7&&p.horaInicio<15):(p.horaInicio>=9&&p.horaInicio<=13); if(en)dentro++; } } });
+  const pctPico = total? Math.round(dentro/total*100):0;
+  const picoLabel = nuevoPico?'7-15h':'9-13h';
+  // carga docente
+  const carga={};
+  state.programacion.forEach(p=>{ const m=acts.find(x=>x.id===p.materiaId); if(m&&m.profId!=='INV'){ (carga[m.profId]=carga[m.profId]||{nombre:PROFESORES[m.profId].nombre,grupos:0,horas:0}); carga[m.profId].grupos++; carga[m.profId].horas+=m.horas; } });
+  const cargaArr = Object.values(carga).sort((a,b)=>b.horas-a.horas);
+  // horas por día
+  const porDia={}; DIAS.forEach(d=>porDia[d]=0);
+  state.programacion.forEach(p=>{ if(porDia[p.dia]!=null){ const m=acts.find(x=>x.id===p.materiaId); if(m) porDia[p.dia]+=m.horas; } });
+
+  const kpi=(label,val,sub,color)=>`<div class="p-4 rounded-xl border bg-white dark:bg-[#1e1e1e] dark:border-[#2d2d2d] shadow-sm"><span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${label}</span><div class="mt-1 flex items-baseline gap-1"><span class="text-3xl font-extrabold ${color||''}">${val}</span><span class="text-xs text-gray-500">${sub}</span></div></div>`;
+
+  document.getElementById('modal-root').innerHTML = shell(`
+    <div class="px-5 py-4 border-b dark:border-[#2d2d2d] flex justify-between items-center bg-gray-50 dark:bg-[#1e1e1e]">
+      <h3 class="font-bold text-lg">📊 Estadísticas del semestre · ${state.periodo} ${state.anio}</h3>
+      <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+    </div>
+    <div class="flex-1 overflow-y-auto scroll-thin p-5 bg-gray-50/30 dark:bg-[#121212] space-y-5">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        ${kpi('Horas semanales',horasSemana,'hrs')}
+        ${kpi('Horas del semestre',horasSemana*16,'hrs (×16)','text-[#E33439]')}
+        ${kpi('Programadas',programadas,'de '+acts.length)}
+        ${kpi('En horario pico ('+picoLabel+')',pctPico+'%','dentro')}
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-5">
+        <div class="lg:col-span-2 p-5 border rounded-xl bg-white dark:bg-[#1e1e1e] dark:border-[#2d2d2d]">
+          <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Carga por día</h4>
+          ${DIAS.map(d=>{ const h=porDia[d]||0; const pct=Math.min(100,Math.round(h/12*100)); return `<div class="mb-2.5"><div class="flex justify-between text-xs font-bold"><span>${d}</span><span class="font-mono text-gray-500">${h}h</span></div><div class="w-full bg-gray-100 dark:bg-[#252525] h-3 rounded-lg overflow-hidden mt-1"><div class="h-full rounded-lg ${h>9?'bg-amber-500':'bg-blue-500'}" style="width:${pct}%"></div></div></div>`; }).join('')}
+        </div>
+        <div class="lg:col-span-3 p-5 border rounded-xl bg-white dark:bg-[#1e1e1e] dark:border-[#2d2d2d]">
+          <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Carga académica por docente</h4>
+          <table class="w-full text-xs text-left"><thead><tr class="text-gray-400 uppercase text-[10px] border-b dark:border-[#2d2d2d]"><th class="py-2">Docente</th><th class="text-center">Grupos</th><th class="text-right">Hrs/sem</th><th class="text-right">Hrs/semestre</th><th class="text-right pr-1">Estado</th></tr></thead><tbody>
+            ${cargaArr.length? cargaArr.map(c=>{ const alta=c.horas>6; return `<tr class="border-b last:border-0 dark:border-[#252525]"><td class="py-2 font-bold">${c.nombre}</td><td class="text-center">${c.grupos}</td><td class="text-right font-mono">${c.horas}</td><td class="text-right font-mono font-bold text-[#E33439]">${c.horas*16}</td><td class="text-right pr-1"><span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${alta?'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300':'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'}">${alta?'Carga alta':'Óptima'}</span></td></tr>`; }).join('') : '<tr><td colspan="5" class="text-center py-5 text-gray-400 italic">No hay clases programadas.</td></tr>'}
+          </tbody></table>
+        </div>
+      </div>
+    </div>
+    <div class="px-5 py-3 border-t dark:border-[#2d2d2d] bg-gray-50 dark:bg-[#1e1e1e] flex justify-end">
+      <button onclick="closeModal()" class="px-4 py-2 border rounded-lg text-sm font-bold dark:border-[#333]">Cerrar</button>
+    </div>`,'max-w-4xl');
+}
+
+function openAutoModal(r){
+  const enPref = r.placed.filter(p=>p.reason==='Preferencia del profesor'||p.reason==='Horario predeterminado').length;
+  const item=(p,skip)=>`<div class="p-2.5 rounded-lg border-l-4 ${skip?'border-l-amber-400':getColor(p.materia)} bg-gray-50 dark:bg-[#222] border-y border-r dark:border-[#333] flex justify-between items-center mb-1.5">
+    <div><p class="font-bold text-sm">${p.materia.nombre}</p><p class="text-[10px] text-gray-500">👤 ${PROFESORES[p.materia.profId]?.nombre||''}</p></div>
+    <div class="flex items-center gap-2">${p.dia&&p.dia!=='Sin horario'?`<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">${p.dia} ${p.horaInicio}:00</span>`:''}<span class="text-[9px] font-bold px-2 py-0.5 rounded ${skip?'bg-amber-100 text-amber-700':'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'}">${skip?'⚠ '+p.reason:p.reason}</span></div></div>`;
+  document.getElementById('modal-root').innerHTML = shell(`
+    <div class="px-5 py-4 border-b dark:border-[#2d2d2d] flex justify-between items-center bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20">
+      <div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white text-lg">✨</div>
+      <div><h3 class="font-bold text-lg">Autoprogramación completada</h3><p class="text-xs text-gray-500">${r.placed.length} colocadas${r.skipped.length?' · '+r.skipped.length+' sin colocar':''}</p></div></div>
+      <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+    </div>
+    <div class="flex-1 overflow-y-auto scroll-thin p-5 space-y-4">
+      <div class="grid grid-cols-3 gap-3">
+        <div class="p-3 rounded-xl border bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/30 text-center"><span class="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">${r.placed.length}</span><p class="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase">Colocadas</p></div>
+        <div class="p-3 rounded-xl border bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-900/30 text-center"><span class="text-2xl font-extrabold text-amber-600 dark:text-amber-400">${r.skipped.length}</span><p class="text-[10px] font-bold text-amber-700 dark:text-amber-300 uppercase">Sin colocar</p></div>
+        <div class="p-3 rounded-xl border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-900/30 text-center"><span class="text-2xl font-extrabold text-blue-600 dark:text-blue-400">${enPref}</span><p class="text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase">En preferencia</p></div>
+      </div>
+      <div><h4 class="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">✓ Colocadas</h4>${r.placed.map(p=>item(p,false)).join('')}</div>
+      ${r.skipped.length?`<div><h4 class="text-xs font-bold uppercase tracking-wider text-amber-600 mb-2">⚠ Sin colocar</h4>${r.skipped.map(p=>item(p,true)).join('')}</div>`:''}
+    </div>
+    <div class="px-5 py-3 border-t dark:border-[#2d2d2d] bg-gray-50 dark:bg-[#1e1e1e] flex justify-between items-center">
+      <span class="text-[10px] text-gray-500">↩ Puedes deshacer con Ctrl+Z</span>
+      <button onclick="closeModal()" class="px-5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-sm font-bold">Entendido</button>
+    </div>`,'max-w-2xl');
+}
+
+// ---------- EXPORTACIONES ----------
+function exportCSV(){
+  let csv='\ufeffNivel,Clave,Grupo,Materia,Día,Inicio,Fin,Docente,Tipo\n';
+  state.programacion.forEach(p=>{ const m=MATERIAS.find(x=>x.id===p.materiaId); if(!m)return; const prof=PROFESORES[m.profId]?.nombre||''; csv+=`${m.nivel},"${m.clave||''}","${m.grupo||''}","${m.nombre}",${p.dia},${p.horaInicio}:00,${p.dia==='Sin horario'?'':((p.horaInicio+m.horas)+':00')},"${prof}",${m.tipo}\n`; });
+  descargar(csv,`benpro_${state.nivel}_${state.periodo}_${state.anio}.csv`,'text/csv');
+}
+function exportReporteWord(){
+  const cls=clasesPorProfesor();
+  const profs=Object.values(PROFESORES).filter(p=>p.id!=='INV').sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  let html=`<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><style>body{font-family:Arial}h1{color:#E33439;font-size:16px;text-align:center}h2{font-size:13px;border-bottom:2px solid #E33439;padding-bottom:3px;margin-top:24px}table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #ccc;padding:6px;font-size:11px;text-align:left}th{background:#f5f5f5}</style></head><body>`;
+  html+=`<h1>Reporte de cursos por docente — ${state.periodo.toUpperCase()} ${state.anio}</h1>`;
+  profs.forEach(prof=>{ const lista=[...(cls[prof.id]||[])]; html+=`<h2>${prof.nombre}</h2><p style="font-size:10px;color:#666;font-style:italic">Preferencia: ${prof.preferencia}</p>`;
+    if(!lista.length){ html+=`<p style="color:#888;font-style:italic;font-size:11px">Sin materias programadas.</p>`; }
+    else { html+=`<table><tr><th>Materia</th><th>Clave</th><th>Horario</th></tr>${lista.map(c=>{ const sem=c.dia==='Sin horario'||c.materia.tipo==='seminario'; return `<tr><td>${c.materia.nombre}</td><td>${c.materia.clave||'S/C'}</td><td>${sem?'Sin horario':`${c.dia} ${c.horaInicio}:00–${c.horaInicio+c.horas}:00`}</td></tr>`; }).join('')}</table>`; }
+  });
+  html+=`<p style="text-align:right;font-size:9px;color:#777;margin-top:24px">Generado con BenPro · demo</p></body></html>`;
+  descargar('\ufeff'+html,`Reporte_Docentes_${state.periodo}_${state.anio}.doc`,'application/msword');
+}
+function descargar(contenido,nombre,tipo){ const blob=new Blob([contenido],{type:tipo}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=nombre; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); }
+
+// ---------- INICIO ----------
+render();
+</script>
+</body>
+</html>
